@@ -1,0 +1,17 @@
+{
+  "name": "smartwallet",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SmartWallet — unified fintech monorepo (backend + mobile)",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev --workspace=apps/backend",
+    "dev:mobile": "npm run dev --workspace=apps/mobile"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}
