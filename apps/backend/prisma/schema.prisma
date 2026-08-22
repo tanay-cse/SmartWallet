@@ -1,0 +1,206 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// SmartWallet — Prisma Schema
+// Matches the 10-entity data model defined in docs/er-diagram.md exactly.
+// Run `npm run prisma:generate` after changes.
+// Run `npm run prisma:migrate:dev -- --name <migration-name>` to apply.
+// ─────────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Entity 1: User ───────────────────────────────────────────────────────────
+// Root aggregate — every other entity belongs to a User.
+
+model User {
+  userId    String @id @default(uuid()) @map("user_id")
+  name      String
+  email     String @unique
+  kycStatus String @map("kyc_status")
+
+  // Relations (one-to-many, matching er-diagram.md)
+  cards            Card[]
+  budgets          Budget[]
+  portfolioHoldings PortfolioHolding[]
+  notifications    Notification[]
+  recommendations  Recommendation[]
+
+  @@map("users")
+}
+
+// ─── Entity 2: Card ───────────────────────────────────────────────────────────
+// Stores ONLY tokenized/masked card data. Raw PAN/CVV are NEVER persisted here.
+// Tokenization is handled externally by the PCI-DSS Token Vault (see architecture.md).
+
+model Card {
+  cardId   String @id @default(uuid()) @map("card_id")
+  userId   String @map("user_id")
+  tokenId  String @map("token_id")   // Opaque token from PCI Token Vault — not the real PAN
+  network  String                     // e.g. "VISA", "MASTERCARD", "RUPAY"
+  nickname String                     // User-assigned label, e.g. "HDFC Regalia"
+
+  // Relations
+  user            User             @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  rewardPrograms  RewardProgram[]
+  transactions    Transaction[]
+  recommendations Recommendation[]
+
+  @@map("cards")
+}
+
+// ─── Entity 3: RewardProgram ──────────────────────────────────────────────────
+// One row per spend category per card (FR-2: automatic reward/benefit ingestion).
+// multiplier: earn rate (e.g. 5.0 = 5× points per ₹100)
+// capAmt:     maximum earn cap for the category per statement cycle (0 = uncapped)
+
+model RewardProgram {
+  programId  String @id @default(uuid()) @map("program_id")
+  cardId     String @map("card_id")
+  category   String                        // e.g. "dining", "travel", "fuel"
+  multiplier Float                         // reward multiplier for this category
+  capAmt     Float  @map("cap_amt")        // max earn cap; 0 = uncapped
+
+  // Relations
+  card Card @relation(fields: [cardId], references: [cardId], onDelete: Cascade)
+
+  @@map("reward_programs")
+}
+
+// ─── Entity 4: Budget ─────────────────────────────────────────────────────────
+// Monthly spending plan for a user.
+// totalLimit is an informational aggregate — per-category limits live on BudgetEntry.
+// Split required by FR-6: "category-wise limits" (see SRS Traceability Note §5).
+
+model Budget {
+  budgetId   String @id @default(uuid()) @map("budget_id")
+  userId     String @map("user_id")
+  month      String                        // ISO-8601 month string, e.g. "2026-08"
+  totalLimit Float  @map("total_limit")    // Informational overall cap
+
+  // Relations
+  user         User          @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  budgetEntries BudgetEntry[]
+
+  @@unique([userId, month])               // One budget per user per month
+  @@map("budgets")
+}
+
+// ─── Entity 5: BudgetEntry ────────────────────────────────────────────────────
+// One row per spend category within a Budget (FR-6: category-wise limits).
+// This is why Budget was split — a single limit_amt on Budget cannot represent
+// multiple category limits.
+
+model BudgetEntry {
+  entryId   String @id @default(uuid()) @map("entry_id")
+  budgetId  String @map("budget_id")
+  category  String                        // e.g. "dining", "groceries", "entertainment"
+  limitAmt  Float  @map("limit_amt")      // Spending limit for this category this month
+
+  // Relations
+  budget       Budget        @relation(fields: [budgetId], references: [budgetId], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@unique([budgetId, category])          // One entry per category per budget
+  @@map("budget_entries")
+}
+
+// ─── Entity 6: Transaction ────────────────────────────────────────────────────
+// A single payment event. Links to BudgetEntry (not Budget directly) so it's
+// clear which category limit it counts against (er-diagram.md change note #6).
+// paymentRail: "UPI" | "NFC" | "ONLINE" (FR-4)
+// txnTime:     exact timestamp for auditability (NFR: Auditability)
+
+model Transaction {
+  txnId       String   @id @default(uuid()) @map("txn_id")
+  cardId      String   @map("card_id")
+  entryId     String   @map("entry_id")   // FK → BudgetEntry (NOT Budget)
+  amount      Float
+  category    String
+  paymentRail String   @map("payment_rail") // "UPI" | "NFC" | "ONLINE"
+  txnTime     DateTime @map("txn_time")
+
+  // Relations
+  card        Card        @relation(fields: [cardId], references: [cardId], onDelete: Restrict)
+  budgetEntry BudgetEntry @relation(fields: [entryId], references: [entryId], onDelete: Restrict)
+
+  @@index([cardId])
+  @@index([category])
+  @@index([txnTime])
+  @@map("transactions")
+}
+
+// ─── Entity 7: PortfolioHolding ───────────────────────────────────────────────
+// A user's current position in an asset (FR-5: view/buy/sell equities, MF, SIP, gold).
+// assetType: "EQUITY" | "MUTUAL_FUND" | "SIP" | "GOLD"
+
+model PortfolioHolding {
+  holdingId String @id @default(uuid()) @map("holding_id")
+  userId    String @map("user_id")
+  assetType String @map("asset_type")   // "EQUITY" | "MUTUAL_FUND" | "SIP" | "GOLD"
+  qty       Float                        // Current quantity / units held
+  avgPrice  Float  @map("avg_price")    // Volume-weighted average purchase price
+
+  // Relations
+  user        User         @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  tradeOrders TradeOrder[]
+
+  @@map("portfolio_holdings")
+}
+
+// ─── Entity 8: TradeOrder ─────────────────────────────────────────────────────
+// A buy or sell order placed against a PortfolioHolding (FR-5).
+// side:   "BUY" | "SELL"
+// status: "PENDING" | "EXECUTED" | "CANCELLED" | "FAILED"
+
+model TradeOrder {
+  orderId   String @id @default(uuid()) @map("order_id")
+  holdingId String @map("holding_id")
+  side      String                        // "BUY" | "SELL"
+  qty       Float                         // Units ordered
+  status    String                        // "PENDING" | "EXECUTED" | "CANCELLED" | "FAILED"
+
+  // Relations
+  holding PortfolioHolding @relation(fields: [holdingId], references: [holdingId], onDelete: Cascade)
+
+  @@map("trade_orders")
+}
+
+// ─── Entity 9: Notification ───────────────────────────────────────────────────
+// A push message delivered to the user.
+// type field distinguishes daily spend alerts (FR-7) from month-end recommendations (FR-8).
+// type: "DAILY_SPEND" | "MONTH_END_RECOMMENDATION" | "GENERAL"
+
+model Notification {
+  notifId String @id @default(uuid()) @map("notif_id")
+  userId  String @map("user_id")
+  type    String                          // "DAILY_SPEND" | "MONTH_END_RECOMMENDATION" | "GENERAL"
+  message String
+
+  // Relations
+  user User @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+// ─── Entity 10: Recommendation ────────────────────────────────────────────────
+// Output of the AI Rec Engine (FR-3).
+// Stores user_id, card_id, and reasoning text for full auditability (NFR: Auditability).
+// Every recommendation event is also published to Kafka for immutable logging (see architecture.md).
+
+model Recommendation {
+  recId     String @id @default(uuid()) @map("rec_id")
+  userId    String @map("user_id")
+  cardId    String @map("card_id")
+  reasoning String                        // Explanation of why this card was recommended
+
+  // Relations
+  user User @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  card Card @relation(fields: [cardId], references: [cardId], onDelete: Cascade)
+
+  @@map("recommendations")
+}
