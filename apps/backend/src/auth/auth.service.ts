@@ -16,7 +16,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
-  ) {}
+  ) { }
 
   async signup(dto: SignupDto) {
     const existing = await this.prisma.user.findUnique({
@@ -38,7 +38,8 @@ export class AuthService {
     });
 
     // Never return the password hash to the client.
-    const { password, ...safeUser } = user;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password: password, ...safeUser } = user;
     return safeUser;
   }
 
