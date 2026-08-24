@@ -21,7 +21,8 @@ model User {
   userId    String @id @default(uuid()) @map("user_id")
   name      String
   email     String @unique
-  kycStatus String @map("kyc_status")
+  password  String
+  kycStatus String @default("pending")
 
   // Relations (one-to-many, matching er-diagram.md)
   cards            Card[]

@@ -7,6 +7,7 @@ import { RecommendationModule } from './recommendation/recommendation.module';
 import { PaymentsModule } from './payments/payments.module';
 import { PortfolioModule } from './portfolio/portfolio.module';
 import { BudgetModule } from './budget/budget.module';
+import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { BudgetModule } from './budget/budget.module';
     PaymentsModule,
     PortfolioModule,
     BudgetModule,
+    PrismaModule,
   ],
   controllers: [AppController],
   providers: [AppService],

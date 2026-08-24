@@ -1,0 +1,36 @@
+### SmartWallet Auth Endpoints — example requests
+### Use with the VS Code "REST Client" extension, or copy into curl/Postman.
+
+@baseUrl = http://localhost:3000
+
+### 1. Signup
+POST {{baseUrl}}/auth/signup
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "Test1234!",
+  "name": "Test User"
+}
+
+### 2. Login
+# Copy the accessToken and refreshToken from the response for the next steps.
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "Test1234!"
+}
+
+### 3. Refresh
+POST {{baseUrl}}/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "PASTE_REFRESH_TOKEN_HERE"
+}
+
+### 4. Example of a protected route (once other modules use JwtAuthGuard)
+# GET {{baseUrl}}/cards
+# Authorization: Bearer PASTE_ACCESS_TOKEN_HERE
