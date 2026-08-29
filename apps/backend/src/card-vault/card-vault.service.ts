@@ -1,20 +1,25 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class CardVaultService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // CREATE
-  async createCard(data: {
-    userId: string;
-    tokenId: string;
-    network: string;
-    nickname: string;
-  }) {
+  // CREATE CARD
+  async createCard(
+    userId: string,
+    data: {
+      tokenId: string;
+      network: string;
+      nickname: string;
+    },
+  ) {
     return this.prisma.card.create({
       data: {
-        userId: data.userId,
+        userId,
         tokenId: data.tokenId,
         network: data.network,
         nickname: data.nickname,
@@ -22,42 +27,46 @@ export class CardVaultService {
     });
   }
 
-  // GET ALL
-  async getAllCards(userId?: string) {
+  // GET ALL CARDS OF LOGGED-IN USER
+  async getAllCards(userId: string) {
     return this.prisma.card.findMany({
-      where: userId ? { userId } : undefined,
+      where: { userId },
       include: {
         rewardPrograms: true,
       },
     });
   }
 
-  // GET ONE
-  async getCard(cardId: string) {
-    const card = await this.prisma.card.findUnique({
-      where: { cardId },
+  // GET ONE CARD OF LOGGED-IN USER
+  async getCard(cardId: string, userId: string) {
+    const card = await this.prisma.card.findFirst({
+      where: {
+        cardId,
+        userId,
+      },
       include: {
         rewardPrograms: true,
       },
     });
 
     if (!card) {
-      throw new NotFoundException(`Card ${cardId} not found`);
+      throw new NotFoundException('Card not found');
     }
 
     return card;
   }
 
-  // UPDATE
+  // UPDATE CARD
   async updateCard(
     cardId: string,
+    userId: string,
     data: {
       nickname?: string;
       network?: string;
       tokenId?: string;
     },
   ) {
-    await this.getCard(cardId);
+    await this.getCard(cardId, userId);
 
     return this.prisma.card.update({
       where: { cardId },
@@ -65,9 +74,9 @@ export class CardVaultService {
     });
   }
 
-  // DELETE
-  async deleteCard(cardId: string) {
-    await this.getCard(cardId);
+  // DELETE CARD
+  async deleteCard(cardId: string, userId: string) {
+    await this.getCard(cardId, userId);
 
     await this.prisma.card.delete({
       where: { cardId },
@@ -79,9 +88,14 @@ export class CardVaultService {
     };
   }
 
-  // REWARD CALCULATION
-  async getRewards(cardId: string, category: string, amount: number) {
-    await this.getCard(cardId);
+  // GET REWARD FOR A CATEGORY AND AMOUNT
+  async getRewards(
+    cardId: string,
+    userId: string,
+    category: string,
+    amount: number,
+  ) {
+    await this.getCard(cardId, userId);
 
     const rewardProgram = await this.prisma.rewardProgram.findFirst({
       where: {
