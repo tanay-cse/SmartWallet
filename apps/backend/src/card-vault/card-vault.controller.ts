@@ -7,10 +7,13 @@ import {
   Patch,
   Post,
   Query,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
-
+import { AuthGuard } from '@nestjs/passport';
 import { CardVaultService } from './card-vault.service';
 
+@UseGuards(AuthGuard('jwt'))
 @Controller('cards')
 export class CardVaultController {
   constructor(private readonly cardVaultService: CardVaultService) {}
@@ -18,32 +21,57 @@ export class CardVaultController {
   // POST /cards
   @Post()
   createCard(
+    @Req() req: { user: { userId: string; email: string } },
     @Body()
     body: {
-      userId: string;
       tokenId: string;
       network: string;
       nickname: string;
     },
   ) {
-    return this.cardVaultService.createCard(body);
+    return this.cardVaultService.createCard(req.user.userId, body);
   }
 
   // GET /cards
   @Get()
-  getAllCards(@Query('userId') userId?: string) {
-    return this.cardVaultService.getAllCards(userId);
+  getAllCards(
+    @Req() req: { user: { userId: string; email: string } },
+  ) {
+    return this.cardVaultService.getAllCards(req.user.userId);
+  }
+
+  // GET /cards/:id/rewards?category=travel&amount=2000
+  @Get(':id/rewards')
+  getRewards(
+    @Req() req: { user: { userId: string; email: string } },
+    @Param('id') cardId: string,
+    @Query('category') category: string,
+    @Query('amount') amount: string,
+  ) {
+    return this.cardVaultService.getRewards(
+      cardId,
+      req.user.userId,
+      category,
+      Number(amount),
+    );
   }
 
   // GET /cards/:id
   @Get(':id')
-  getCard(@Param('id') cardId: string) {
-    return this.cardVaultService.getCard(cardId);
+  getCard(
+    @Req() req: { user: { userId: string; email: string } },
+    @Param('id') cardId: string,
+  ) {
+    return this.cardVaultService.getCard(
+      cardId,
+      req.user.userId,
+    );
   }
 
   // PATCH /cards/:id
   @Patch(':id')
   updateCard(
+    @Req() req: { user: { userId: string; email: string } },
     @Param('id') cardId: string,
     @Body()
     body: {
@@ -52,26 +80,22 @@ export class CardVaultController {
       tokenId?: string;
     },
   ) {
-    return this.cardVaultService.updateCard(cardId, body);
+    return this.cardVaultService.updateCard(
+      cardId,
+      req.user.userId,
+      body,
+    );
   }
 
   // DELETE /cards/:id
   @Delete(':id')
-  deleteCard(@Param('id') cardId: string) {
-    return this.cardVaultService.deleteCard(cardId);
-  }
-
-  // GET /cards/:id/rewards
-  @Get(':id/rewards')
-  getRewards(
+  deleteCard(
+    @Req() req: { user: { userId: string; email: string } },
     @Param('id') cardId: string,
-    @Query('category') category: string,
-    @Query('amount') amount: string,
   ) {
-    return this.cardVaultService.getRewards(
+    return this.cardVaultService.deleteCard(
       cardId,
-      category,
-      Number(amount),
+      req.user.userId,
     );
   }
 }
