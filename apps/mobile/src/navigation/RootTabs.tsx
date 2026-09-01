@@ -32,8 +32,8 @@ export function RootTabs() {
       screenOptions={({ route }) => ({
         animation: 'shift',
         headerTitleAlign: 'center',
-        tabBarActiveTintColor: '#2563EB',
-        tabBarInactiveTintColor: '#6B7280',
+        tabBarActiveTintColor: '#065F46',
+        tabBarInactiveTintColor: '#64748B',
         tabBarStyle: styles.tabBar,
         tabBarLabel: ({ color, focused }) => (
           <Text style={[styles.tabLabel, focused && styles.tabLabelFocused, { color }]}>
@@ -56,10 +56,10 @@ export function RootTabs() {
         },
       })}
     >
-      <Tab.Screen name="Vault" component={VaultScreen} />
+      <Tab.Screen name="Vault" component={VaultScreen} options={{ headerShown: false }} />
       <Tab.Screen name="Invest" component={InvestScreen} />
       <Tab.Screen name="Pay" component={PayScreen} />
-      <Tab.Screen name="Budget" component={BudgetScreen} />
+      <Tab.Screen name="Budget" component={BudgetScreen} options={{ headerShown: false }} />
       <Tab.Screen name="Transactions" component={TransactionsScreen} />
     </Tab.Navigator>
   );
@@ -69,6 +69,8 @@ const styles = StyleSheet.create({
   tabBar: {
     height: 68,
     paddingTop: 5,
+    backgroundColor: '#FFFFFF',
+    borderTopColor: '#F1F5F9',
   },
   tabLabel: {
     fontSize: 11,
@@ -85,9 +87,9 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 10,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#F8F9FA',
   },
   payIconContainerFocused: {
-    backgroundColor: '#DBEAFE',
+    backgroundColor: '#F0FDF4',
   },
 });
