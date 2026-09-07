@@ -1,97 +1,64 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Colors } from '../../theme/colors';
-import {
-  ArrowUpRightIcon,
-  CalendarIcon,
-  DownloadIcon,
-  PlusIcon,
-} from '../icons/BudgetIcons';
+import { PlusIcon } from '../icons/BudgetIcons';
 
 type QuickActionsBarProps = {
   onAddBudget?: () => void;
-  onTransfer?: () => void;
-  onSchedule?: () => void;
-  onExport?: () => void;
 };
 
-export function QuickActionsBar({
-  onAddBudget,
-  onTransfer,
-  onSchedule,
-  onExport,
-}: QuickActionsBarProps) {
-  const actions = [
-    {
-      id: 'add',
-      label: 'Add Budget',
-      icon: <PlusIcon size={16} color={Colors.textPrimary} />,
-      onPress: onAddBudget,
-    },
-    {
-      id: 'transfer',
-      label: 'Transfer',
-      icon: <ArrowUpRightIcon size={16} color={Colors.textPrimary} />,
-      onPress: onTransfer,
-    },
-    {
-      id: 'schedule',
-      label: 'Scheduled',
-      icon: <CalendarIcon size={16} color={Colors.textPrimary} />,
-      onPress: onSchedule,
-    },
-    {
-      id: 'export',
-      label: 'Statement',
-      icon: <DownloadIcon size={16} color={Colors.textPrimary} />,
-      onPress: onExport,
-    },
-  ];
-
+export function QuickActionsBar({ onAddBudget }: QuickActionsBarProps) {
   return (
     <View style={styles.container}>
-      {actions.map((action) => (
-        <TouchableOpacity
-          key={action.id}
-          style={styles.actionBtn}
-          onPress={action.onPress}
-          activeOpacity={0.7}
-        >
-          <View style={styles.iconCircle}>{action.icon}</View>
-          <Text style={styles.actionLabel}>{action.label}</Text>
-        </TouchableOpacity>
-      ))}
+      <TouchableOpacity
+        style={styles.addBudgetButton}
+        onPress={onAddBudget}
+        activeOpacity={0.8}
+      >
+        <View style={styles.iconCircle}>
+          <PlusIcon size={16} color="#FFFFFF" />
+        </View>
+        <Text style={styles.actionLabel}>Add Budget</Text>
+      </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 24,
-    paddingVertical: 14,
+    paddingVertical: 12,
     backgroundColor: Colors.background,
   },
-  actionBtn: {
+  addBudgetButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: Colors.surfaceSubtle,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 24,
+    backgroundColor: Colors.forestGreen,
+    shadowColor: Colors.forestGreen,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 2,
   },
   iconCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   actionLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.textPrimary,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.2,
   },
 });

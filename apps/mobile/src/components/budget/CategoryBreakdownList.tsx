@@ -15,6 +15,11 @@ export function CategoryBreakdownList({
   selectedCategoryId,
   onSelectCategory,
 }: CategoryBreakdownListProps) {
+  // Sort categories descending by amount (highest spend first)
+  const sortedCategories = React.useMemo(() => {
+    return [...categories].sort((a, b) => b.amount - a.amount);
+  }, [categories]);
+
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
@@ -24,9 +29,9 @@ export function CategoryBreakdownList({
 
       {/* Edge-to-Edge List */}
       <View style={styles.listContainer}>
-        {categories.map((cat, index) => {
+        {sortedCategories.map((cat, index) => {
           const isSelected = selectedCategoryId === cat.id;
-          const isLast = index === categories.length - 1;
+          const isLast = index === sortedCategories.length - 1;
 
           const formattedAmount = `₹${cat.amount.toLocaleString('en-IN', {
             minimumFractionDigits: 2,

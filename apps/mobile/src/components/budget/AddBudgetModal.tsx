@@ -27,6 +27,7 @@ export function AddBudgetModal({
 }: AddBudgetModalProps) {
   const [selectedCatId, setSelectedCatId] = useState<string>(categories[0]?.id || '');
   const [amountStr, setAmountStr] = useState<string>('5000');
+  const [investmentTargetStr, setInvestmentTargetStr] = useState<string>('15000');
   const [success, setSuccess] = useState<boolean>(false);
 
   const quickAmounts = [1000, 2500, 5000, 10000];
@@ -136,6 +137,22 @@ export function AddBudgetModal({
                 );
               })}
             </View>
+
+            {/* Investment Targets Section */}
+            <Text style={styles.sectionLabel}>Investment Targets</Text>
+            <View style={styles.amountBox}>
+              <Text style={styles.currencySymbol}>₹</Text>
+              <TextInput
+                style={styles.amountInput}
+                value={investmentTargetStr}
+                onChangeText={setInvestmentTargetStr}
+                keyboardType="numeric"
+                placeholder="0"
+                placeholderTextColor={Colors.textMuted}
+                autoFocus={false}
+              />
+            </View>
+            <Text style={[styles.amountSubtitle, { marginBottom: 20 }]}>Monthly target for portfolio & wealth growth</Text>
 
             {/* Submit Button in Forest Green */}
             <TouchableOpacity

@@ -27,9 +27,11 @@ import {
 } from '../data/mockBudgetData';
 import { Colors } from '../theme/colors';
 import { CategoryItem, PeriodOption } from '../types/budget';
+import { useRoute } from '@react-navigation/native';
 
 export function BudgetScreen() {
   const insets = useSafeAreaInsets();
+  const route = useRoute<any>();
 
   // Ensure top padding is never clipped by the battery/status bar in Expo Go
   const topPadding = Math.max(
@@ -40,6 +42,15 @@ export function BudgetScreen() {
   const [activeTab, setActiveTab] = useState<BudgetTab>('overview');
   const [breakdownMode, setBreakdownMode] = useState<'expense' | 'income'>('expense');
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodOption>(PERIOD_OPTIONS[0]);
+
+  React.useEffect(() => {
+    if (route.params?.tab === 'breakdown') {
+      setActiveTab('breakdown');
+      setBreakdownMode('expense');
+    } else if (route.params?.tab === 'overview') {
+      setActiveTab('overview');
+    }
+  }, [route.params?.tab]);
 
   // Modals state
   const [isPeriodModalVisible, setIsPeriodModalVisible] = useState(false);
@@ -130,12 +141,9 @@ export function BudgetScreen() {
           }}
         />
 
-        {/* Compact Horizontal Row of Minimal Action Icons */}
+        {/* Compact Centered Minimal Add Budget Button */}
         <QuickActionsBar
           onAddBudget={() => setIsAddBudgetModalVisible(true)}
-          onTransfer={() => setIsAddBudgetModalVisible(true)}
-          onSchedule={() => {}}
-          onExport={() => {}}
         />
 
         {/* Clean Borderless Toggle at top of insights */}
@@ -222,7 +230,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 40,
+    paddingBottom: 110,
   },
   tabContent: {
     flex: 1,
