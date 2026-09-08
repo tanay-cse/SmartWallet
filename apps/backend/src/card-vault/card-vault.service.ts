@@ -1,6 +1,11 @@
 import {
   Injectable,
   NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -89,41 +94,66 @@ export class CardVaultService {
   }
 
   // GET REWARD FOR A CATEGORY AND AMOUNT
-  async getRewards(
-    cardId: string,
-    userId: string,
-    category: string,
-    amount: number,
-  ) {
-    await this.getCard(cardId, userId);
+async getRewards(
+  cardId: string,
+  userId: string,
+  category: string,
+  amount: number,
+) {
+  await this.getCard(cardId, userId);
 
-    const rewardProgram = await this.prisma.rewardProgram.findFirst({
+  // Validate category
+  if (!category || category.trim() === '') {
+    throw new BadRequestException('Category is required');
+  }
+
+  // Validate amount
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new BadRequestException(
+      'Amount must be a positive number',
+    );
+  }
+
+  const normalizedCategory = category.trim().toLowerCase();
+
+  const rewardProgram =
+    await this.prisma.rewardProgram.findFirst({
       where: {
         cardId,
-        category: category.toLowerCase(),
+        category: normalizedCategory,
       },
     });
 
-    if (!rewardProgram) {
-      return {
-        cardId,
-        category,
-        amount,
-        multiplier: 0,
-        reward: 0,
-        message: 'No reward program found for this category',
-      };
-    }
-
-    const reward = amount * rewardProgram.multiplier;
-
+  // No reward for this category
+  if (!rewardProgram) {
     return {
       cardId,
-      category,
+      category: normalizedCategory,
       amount,
-      multiplier: rewardProgram.multiplier,
-      reward,
-      capAmt: rewardProgram.capAmt,
+      multiplier: 0,
+      reward: 0,
+      capAmt: 0,
+      message: 'No reward program found for this category',
     };
   }
+
+  let reward = amount * rewardProgram.multiplier;
+
+  // Apply reward cap if one exists.
+  // capAmt = 0 means uncapped.
+  if (
+    rewardProgram.capAmt > 0 &&
+    reward > rewardProgram.capAmt
+  ) {
+    reward = rewardProgram.capAmt;
+  }
+
+  return {
+    cardId,
+    category: normalizedCategory,
+    amount,
+    multiplier: rewardProgram.multiplier,
+    reward,
+    capAmt: rewardProgram.capAmt,
+  };
 }
