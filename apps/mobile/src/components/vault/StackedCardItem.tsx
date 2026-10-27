@@ -44,7 +44,7 @@ export function StackedCardItem({
       activeOpacity={0.88}
     >
       {/* 100% Responsive SVG Gradient Background (No fixed width/height clipping) */}
-      <Svg width="100%" height="100%" style={StyleSheet.absoluteFillObject}>
+      <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
         <Defs>
           <LinearGradient id={gradId} x1="0" y1="0" x2="1" y2="1">
             <Stop offset="0%" stopColor={card.gradientColors[0]} />

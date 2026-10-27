@@ -14,6 +14,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
   // Whatever this returns becomes `req.user` in protected routes.
   async validate(payload: { sub: string; email: string }) {
+    console.log('JWT Payload decoded:', payload);
     return { userId: payload.sub, email: payload.email };
   }
 }

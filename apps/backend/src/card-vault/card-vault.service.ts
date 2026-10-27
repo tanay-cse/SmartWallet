@@ -11,7 +11,7 @@ import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class CardVaultService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   // CREATE CARD
   async createCard(
@@ -20,18 +20,21 @@ export class CardVaultService {
       tokenId: string;
       network: string;
       nickname: string;
+      upiId?: string;
     },
   ) {
     return this.prisma.card.create({
       data: {
-        userId,
+        user: {
+          connect: { userId }
+        },
         tokenId: data.tokenId,
         network: data.network,
         nickname: data.nickname,
+        upiId: data.upiId,
       },
     });
   }
-
   // GET ALL CARDS OF LOGGED-IN USER
   async getAllCards(userId: string) {
     return this.prisma.card.findMany({

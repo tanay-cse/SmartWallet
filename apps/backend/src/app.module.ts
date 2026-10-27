@@ -8,6 +8,8 @@ import { PaymentsModule } from './payments/payments.module';
 import { PortfolioModule } from './portfolio/portfolio.module';
 import { BudgetModule } from './budget/budget.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { TransactionsModule } from './transactions/transactions.module';
+
 
 @Module({
   imports: [
@@ -18,6 +20,7 @@ import { PrismaModule } from './prisma/prisma.module';
     PortfolioModule,
     BudgetModule,
     PrismaModule,
+    TransactionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

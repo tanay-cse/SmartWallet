@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
+import { AuthModule } from '../auth/auth.module';
 import { PaymentsController } from './payments.controller';
 import { PaymentsService } from './payments.service';
 
-/** Payment Orchestrator — initiates UPI/NFC payments (FR-4) */
 @Module({
+  imports: [AuthModule], // for JwtAuthGuard's dependencies
   controllers: [PaymentsController],
   providers: [PaymentsService],
-  exports: [PaymentsService],
 })
 export class PaymentsModule {}

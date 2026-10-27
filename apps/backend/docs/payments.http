@@ -1,0 +1,39 @@
+### Payments (sandboxed UPI simulation) — example requests
+### No external gateway, no API keys needed.
+
+@baseUrl = http://localhost:3000/api
+@accessToken = $2b$10$GN9hi0LdALtVdW/vo.SjS.y0KAPZQb8n6FNaZeuxKqwc7I22l7BHm
+@cardId = PASTE_A_REAL_CARD_ID_WITH_UPIID_SET
+
+### 1. Initiate a payment (creates a PENDING transaction)
+POST {{baseUrl}}/payments/upi/initiate
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "cardId": "{{cardId}}",
+  "amount": 150,
+  "category": "Dining",
+  "payeeUpiId": "merchant@sandbox"
+}
+
+### 2. Confirm the payment (simulates the PSP callback)
+### Copy txnId from step 1's response.
+POST {{baseUrl}}/payments/upi/confirm
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "txnId": "PASTE_TXN_ID_HERE",
+  "outcome": "SUCCESS"
+}
+
+### 3. Try confirming a failure instead, for the failure-handling case
+POST {{baseUrl}}/payments/upi/confirm
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "txnId": "PASTE_ANOTHER_TXN_ID_HERE",
+  "outcome": "FAILED"
+}

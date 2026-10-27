@@ -8,6 +8,7 @@ import {
   StatusBar as RNStatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -31,6 +32,8 @@ export function QrScannerModal({ visible, onClose, onScanSuccess }: QrScannerMod
   const [permission, requestPermission] = useCameraPermissions();
   const [torchOn, setTorchOn] = useState(false);
   const [scanned, setScanned] = useState(false);
+  const [showSimulator, setShowSimulator] = useState(false);
+  const [customQrText, setCustomQrText] = useState('upi://pay?pa=starbucks@hdfcbank&am=250&pn=Starbucks');
 
   // Laser scanning animation line
   const scanAnim = useRef(new Animated.Value(0)).current;
@@ -38,6 +41,7 @@ export function QrScannerModal({ visible, onClose, onScanSuccess }: QrScannerMod
   useEffect(() => {
     if (visible) {
       setScanned(false);
+      setShowSimulator(false);
       Animated.loop(
         Animated.sequence([
           Animated.timing(scanAnim, {
@@ -84,6 +88,10 @@ export function QrScannerModal({ visible, onClose, onScanSuccess }: QrScannerMod
     }
   };
 
+  const handleSimulate = (payload: string) => {
+    handleBarcodeScanned({ data: payload });
+  };
+
   const handlePickImage = async () => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -93,17 +101,14 @@ export function QrScannerModal({ visible, onClose, onScanSuccess }: QrScannerMod
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: false,
         quality: 1,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        Alert.alert(
-          'QR Image Selected',
-          'Image loaded successfully. Processing UPI details...',
-          [{ text: 'OK', onPress: () => {} }]
-        );
+        // Simulated decoded QR from picked image
+        handleBarcodeScanned({ data: 'upi://pay?pa=merchant.store@icici&am=350&pn=CafeDelhi&cu=INR' });
       }
     } catch (e) {
       Alert.alert('Gallery Error', 'Could not open gallery. Please try again.');
@@ -154,6 +159,14 @@ export function QrScannerModal({ visible, onClose, onScanSuccess }: QrScannerMod
               </TouchableOpacity>
 
               <TouchableOpacity
+                style={styles.simulateBtn}
+                onPress={() => setShowSimulator(true)}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.simulateBtnText}>⚡ Simulate / Test UPI QR</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
                 style={styles.uploadAltBtn}
                 onPress={handlePickImage}
                 activeOpacity={0.85}
@@ -164,10 +177,10 @@ export function QrScannerModal({ visible, onClose, onScanSuccess }: QrScannerMod
           </View>
         ) : (
           /* Working Camera View */
-          <View style={StyleSheet.absoluteFillObject}>
+          <View style={StyleSheet.absoluteFill}>
             <RNStatusBar barStyle="light-content" backgroundColor="#000000" translucent />
             <CameraView
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
               facing="back"
               enableTorch={torchOn}
               onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
@@ -221,20 +234,116 @@ export function QrScannerModal({ visible, onClose, onScanSuccess }: QrScannerMod
             <View style={styles.overlayBottom}>
               <Text style={styles.hintText}>Point camera at any Bharat / UPI QR</Text>
 
-              {/* Action Buttons: Gallery Upload */}
+              {/* Action Buttons: Simulator & Gallery Upload */}
               <View style={styles.bottomActions}>
+                <TouchableOpacity
+                  style={styles.simulateChipBtn}
+                  onPress={() => setShowSimulator(true)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.simulateChipText}>⚡ Test / Paste QR</Text>
+                </TouchableOpacity>
+
                 <TouchableOpacity
                   style={styles.galleryBtn}
                   onPress={handlePickImage}
                   activeOpacity={0.8}
                 >
                   <Text style={{ fontSize: 16 }}>🖼️</Text>
-                  <Text style={styles.galleryBtnText}>Upload from Gallery</Text>
+                  <Text style={styles.galleryBtnText}>Gallery</Text>
                 </TouchableOpacity>
               </View>
             </View>
           </View>
         )}
+
+        {/* QR Simulation Sheet */}
+        <Modal
+          visible={showSimulator}
+          animationType="fade"
+          transparent
+          onRequestClose={() => setShowSimulator(false)}
+        >
+          <View style={styles.simOverlay}>
+            <View style={styles.simCard}>
+              <View style={styles.simHeaderRow}>
+                <Text style={styles.simTitle}>⚡ Test UPI QR Payloads</Text>
+                <TouchableOpacity onPress={() => setShowSimulator(false)}>
+                  <Text style={styles.simClose}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.simSubtitle}>
+                Select a test preset or enter a custom upi://pay URI to test instant parsing:
+              </Text>
+
+              {/* Preset Buttons */}
+              <View style={styles.presetsList}>
+                <TouchableOpacity
+                  style={styles.presetItem}
+                  onPress={() => {
+                    setShowSimulator(false);
+                    handleSimulate('upi://pay?pa=starbucks@hdfcbank&am=250&pn=Starbucks&cu=INR');
+                  }}
+                >
+                  <View>
+                    <Text style={styles.presetName}>Starbucks (With Amount)</Text>
+                    <Text style={styles.presetDetail}>starbucks@hdfcbank • ₹250</Text>
+                  </View>
+                  <Text style={styles.presetArrow}>→</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.presetItem}
+                  onPress={() => {
+                    setShowSimulator(false);
+                    handleSimulate('upi://pay?pa=chaipoint@icici&pn=ChaiPoint');
+                  }}
+                >
+                  <View>
+                    <Text style={styles.presetName}>Chai Point (No Amount)</Text>
+                    <Text style={styles.presetDetail}>chaipoint@icici • Requires manual amount</Text>
+                  </View>
+                  <Text style={styles.presetArrow}>→</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.presetItem}
+                  onPress={() => {
+                    setShowSimulator(false);
+                    handleSimulate('upi://pay?pa=swiggy@axisbank&am=420&pn=Swiggy&cu=INR');
+                  }}
+                >
+                  <View>
+                    <Text style={styles.presetName}>Swiggy Dining (With Amount)</Text>
+                    <Text style={styles.presetDetail}>swiggy@axisbank • ₹420</Text>
+                  </View>
+                  <Text style={styles.presetArrow}>→</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Custom payload input */}
+              <Text style={styles.customInputLabel}>Custom UPI Payload:</Text>
+              <TextInput
+                style={styles.customTextInput}
+                value={customQrText}
+                onChangeText={setCustomQrText}
+                autoCapitalize="none"
+                placeholder="upi://pay?pa=..."
+                placeholderTextColor={Colors.textMuted}
+              />
+
+              <TouchableOpacity
+                style={styles.customApplyBtn}
+                onPress={() => {
+                  setShowSimulator(false);
+                  handleSimulate(customQrText);
+                }}
+              >
+                <Text style={styles.customApplyBtnText}>Use Custom Payload</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </View>
     </Modal>
   );
@@ -459,5 +568,136 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  simulateBtn: {
+    backgroundColor: Colors.forestGreenLight,
+    borderWidth: 1.5,
+    borderColor: Colors.forestGreen,
+    width: '100%',
+    paddingVertical: 14,
+    borderRadius: 24,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  simulateBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.forestGreen,
+  },
+  simulateChipBtn: {
+    backgroundColor: Colors.forestGreen,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: Colors.forestGreenBorder,
+    shadowColor: Colors.forestGreen,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  simulateChipText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  simOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  simCard: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  simHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  simTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+  },
+  simClose: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    padding: 4,
+  },
+  simSubtitle: {
+    fontSize: 12.5,
+    color: Colors.textSecondary,
+    marginBottom: 16,
+    lineHeight: 17,
+  },
+  presetsList: {
+    gap: 8,
+    marginBottom: 16,
+  },
+  presetItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: Colors.surfaceSubtle,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+  },
+  presetName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+  },
+  presetDetail: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  presetArrow: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.forestGreen,
+  },
+  customInputLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    marginBottom: 6,
+  },
+  customTextInput: {
+    backgroundColor: Colors.surfaceSubtle,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 12,
+    color: Colors.textPrimary,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    marginBottom: 12,
+  },
+  customApplyBtn: {
+    backgroundColor: Colors.forestGreen,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  customApplyBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

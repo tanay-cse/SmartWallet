@@ -45,6 +45,8 @@ import {
 } from '../components/pay/PayIcons';
 import { QrScannerModal } from '../components/pay/QrScannerModal';
 import { UpiFaqModal } from '../components/pay/UpiFaqModal';
+import { PaymentLaunchModal } from '../components/pay/PaymentLaunchModal';
+import { parseUpiQr } from '../services/api';
 import { CopyIcon, EyeIcon, EyeOffIcon } from '../components/icons/TabIcon';
 import { SWLogo } from '../components/icons/SWLogo';
 import { Colors } from '../theme/colors';
@@ -67,6 +69,12 @@ export function PayScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isUpiHidden, setIsUpiHidden] = useState(false);
   const [copiedUpi, setCopiedUpi] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [qrPaymentData, setQrPaymentData] = useState<{
+    payeeUpiId: string;
+    amount?: string;
+    category: string;
+  } | null>(null);
 
   const topPadding = Math.max(
     insets.top,
@@ -76,6 +84,25 @@ export function PayScreen() {
   const handleCopyUpi = () => {
     setCopiedUpi(true);
     setTimeout(() => setCopiedUpi(false), 2000);
+  };
+
+  const handleQrScanSuccess = (rawData: string) => {
+    setIsScannerOpen(false);
+    const parsed = parseUpiQr(rawData);
+    if (!parsed || !parsed.payeeUpiId) {
+      Alert.alert(
+        'Invalid UPI QR Code',
+        'Could not parse a valid UPI payee address from this QR payload. Please ensure the QR contains a valid UPI payload (upi://pay?pa=...).'
+      );
+      return;
+    }
+
+    setQrPaymentData({
+      payeeUpiId: parsed.payeeUpiId,
+      amount: parsed.amount && parsed.amount > 0 ? parsed.amount.toString() : '',
+      category: 'TRANSFER',
+    });
+    setIsPaymentModalOpen(true);
   };
 
   const handleServicePress = (item: ServiceItem) => {
@@ -88,7 +115,8 @@ export function PayScreen() {
       return;
     }
     if (item.id === 'approve_pay') {
-      navigation.navigate('ApproveToPay');
+      setQrPaymentData(null);
+      setIsPaymentModalOpen(true);
       return;
     }
     if (item.id === 'mob_recharge') {
@@ -386,82 +414,107 @@ export function PayScreen() {
             )}
           </View>
         ) : (
-          /* ==================== 6 SECTIONS (4 ICONS EACH) ==================== */
-          SECTIONS_DATA.map((section) => (
-            <View key={section.id} style={styles.sectionCard}>
-              {/* Section Header Row */}
-              <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionTitle}>{section.title}</Text>
-
-                {/* Top UPI ID Handle Display (on Payment & Transfers) */}
-                {section.hasUpiHandle && (
-                  <View style={styles.upiHandleWrapper}>
-                    <TouchableOpacity
-                      onPress={() => setIsUpiHidden(!isUpiHidden)}
-                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                    >
-                      {isUpiHidden ? (
-                        <EyeOffIcon size={13} color={Colors.forestGreen} />
-                      ) : (
-                        <EyeIcon size={13} color={Colors.forestGreen} />
-                      )}
-                    </TouchableOpacity>
-
-                    <Text style={styles.upiHandleText}>
-                      {isUpiHidden ? '******@upi' : '******9077@upi'}
-                    </Text>
-
-                    <TouchableOpacity
-                      onPress={handleCopyUpi}
-                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                    >
-                      <CopyIcon size={13} color={copiedUpi ? Colors.forestGreenDark : Colors.forestGreen} />
-                    </TouchableOpacity>
-
-                    {copiedUpi && (
-                      <View style={styles.copiedBadge}>
-                        <Text style={styles.copiedText}>Copied!</Text>
-                      </View>
-                    )}
-                  </View>
-                )}
+          <>
+            {/* ==================== QUICK PAY / UPI LAUNCH BANNER ==================== */}
+            <View style={styles.quickPayBanner}>
+              <View style={styles.quickPayLeftCol}>
+                <View style={styles.quickPayPill}>
+                  <Text style={styles.quickPayPillText}>⚡ FAST UPI & REWARDS</Text>
+                </View>
+                <Text style={styles.quickPayTitle}>Approve to Pay</Text>
+                <Text style={styles.quickPaySubtitle}>
+                  Select card, enter amount & pay via Sandboxed UPI rail
+                </Text>
               </View>
-
-              {/* 4-Item Horizontal Grid */}
-              <View style={styles.itemsGrid}>
-                {section.items.map((item) => (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={styles.gridItem}
-                    onPress={() => handleServicePress(item)}
-                    activeOpacity={0.75}
-                  >
-                    {/* Floating Top Badge (e.g. UPI CIRCLE / FREE) */}
-                    {item.badge && (
-                      <View
-                        style={[
-                          styles.itemBadge,
-                          { backgroundColor: item.badgeColor || Colors.forestGreen },
-                        ]}
-                      >
-                        <Text style={styles.itemBadgeText}>{item.badge}</Text>
-                      </View>
-                    )}
-
-                    {/* Circular Icon Container */}
-                    <View style={styles.iconCircle}>
-                      {item.icon}
-                    </View>
-
-                    {/* 2-Line Centered Label */}
-                    <Text style={styles.itemLabel} numberOfLines={2}>
-                      {item.title}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <TouchableOpacity
+                style={styles.quickPayActionBtn}
+                onPress={() => {
+                  setQrPaymentData(null);
+                  setIsPaymentModalOpen(true);
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.quickPayActionBtnText}>Pay Now →</Text>
+              </TouchableOpacity>
             </View>
-          ))
+
+            {/* ==================== 6 SECTIONS (4 ICONS EACH) ==================== */}
+            {SECTIONS_DATA.map((section) => (
+              <View key={section.id} style={styles.sectionCard}>
+                {/* Section Header Row */}
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionTitle}>{section.title}</Text>
+
+                  {/* Top UPI ID Handle Display (on Payment & Transfers) */}
+                  {section.hasUpiHandle && (
+                    <View style={styles.upiHandleWrapper}>
+                      <TouchableOpacity
+                        onPress={() => setIsUpiHidden(!isUpiHidden)}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      >
+                        {isUpiHidden ? (
+                          <EyeOffIcon size={13} color={Colors.forestGreen} />
+                        ) : (
+                          <EyeIcon size={13} color={Colors.forestGreen} />
+                        )}
+                      </TouchableOpacity>
+
+                      <Text style={styles.upiHandleText}>
+                        {isUpiHidden ? '******@upi' : '******9077@upi'}
+                      </Text>
+
+                      <TouchableOpacity
+                        onPress={handleCopyUpi}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      >
+                        <CopyIcon size={13} color={copiedUpi ? Colors.forestGreenDark : Colors.forestGreen} />
+                      </TouchableOpacity>
+
+                      {copiedUpi && (
+                        <View style={styles.copiedBadge}>
+                          <Text style={styles.copiedText}>Copied!</Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
+                </View>
+
+                {/* 4-Item Horizontal Grid */}
+                <View style={styles.itemsGrid}>
+                  {section.items.map((item) => (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={styles.gridItem}
+                      onPress={() => handleServicePress(item)}
+                      activeOpacity={0.75}
+                    >
+                      {/* Floating Top Badge (e.g. UPI CIRCLE / FREE) */}
+                      {item.badge && (
+                        <View
+                          style={[
+                            styles.itemBadge,
+                            { backgroundColor: item.badgeColor || Colors.forestGreen },
+                          ]}
+                        >
+                          <Text style={styles.itemBadgeText}>{item.badge}</Text>
+                        </View>
+                      )}
+
+                      {/* Circular Icon Container */}
+                      <View style={styles.iconCircle}>
+                        {item.icon}
+                      </View>
+
+                      {/* 2-Line Centered Label */}
+                      <Text style={styles.itemLabel} numberOfLines={2}>
+                        {item.title}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            ))}
+          </>
         )}
       </ScrollView>
 
@@ -469,11 +522,25 @@ export function PayScreen() {
       <QrScannerModal
         visible={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}
+        onScanSuccess={handleQrScanSuccess}
       />
 
       <UpiFaqModal
         visible={isFaqOpen}
         onClose={() => setIsFaqOpen(false)}
+      />
+
+      <PaymentLaunchModal
+        visible={isPaymentModalOpen}
+        onClose={() => {
+          setIsPaymentModalOpen(false);
+          setQrPaymentData(null);
+        }}
+        onSuccessNavigateHome={() => navigation.navigate('Home')}
+        initialCategory={qrPaymentData ? qrPaymentData.category : 'Dining'}
+        initialAmount={qrPaymentData ? qrPaymentData.amount : '150'}
+        initialPayeeUpiId={qrPaymentData ? qrPaymentData.payeeUpiId : 'merchant@upi'}
+        isFromQr={Boolean(qrPaymentData)}
       />
     </View>
   );
@@ -721,5 +788,71 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     color: Colors.textSecondary,
     textAlign: 'center',
+  },
+  quickPayBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#0F172A', // Dark sleek slate
+    borderRadius: 22,
+    paddingVertical: 18,
+    paddingHorizontal: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  quickPayLeftCol: {
+    flex: 1,
+    paddingRight: 14,
+  },
+  quickPayPill: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.4)',
+  },
+  quickPayPillText: {
+    color: '#34D399',
+    fontSize: 9.5,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  quickPayTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: -0.2,
+    marginBottom: 2,
+  },
+  quickPaySubtitle: {
+    fontSize: 12,
+    color: '#94A3B8',
+    lineHeight: 16,
+  },
+  quickPayActionBtn: {
+    backgroundColor: Colors.forestGreen,
+    paddingHorizontal: 15,
+    paddingVertical: 11,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: Colors.forestGreen,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  quickPayActionBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
   },
 });

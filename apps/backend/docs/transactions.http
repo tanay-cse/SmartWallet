@@ -1,0 +1,21 @@
+### Transactions & Card Summary — example requests
+
+@baseUrl = http://localhost:3000/api
+@accessToken = PASTE_ACCESS_TOKEN_HERE
+@cardId = PASTE_A_REAL_CARD_ID_HERE
+
+### List all transactions
+GET {{baseUrl}}/transactions
+Authorization: Bearer {{accessToken}}
+
+### List transactions filtered by category
+GET {{baseUrl}}/transactions?category=Dining
+Authorization: Bearer {{accessToken}}
+
+### Get one transaction (for status polling after a payment)
+GET {{baseUrl}}/transactions/PASTE_TXN_ID_HERE
+Authorization: Bearer {{accessToken}}
+
+### Card summary — balance, points, category breakdown
+GET {{baseUrl}}/cards/{{cardId}}/summary
+Authorization: Bearer {{accessToken}}

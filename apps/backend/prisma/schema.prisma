@@ -22,7 +22,7 @@ model User {
   name      String
   email     String @unique
   password  String
-  kycStatus String @default("pending")
+  kycStatus String @default("pending") @map("kyc_status")
 
   // Relations (one-to-many, matching er-diagram.md)
   cards            Card[]
@@ -42,6 +42,7 @@ model Card {
   cardId   String @id @default(uuid()) @map("card_id")
   userId   String @map("user_id")
   tokenId  String @map("token_id")   // Opaque token from PCI Token Vault — not the real PAN
+  upiId    String? @unique @map("upi_id")
   network  String                     // e.g. "VISA", "MASTERCARD", "RUPAY"
   nickname String                     // User-assigned label, e.g. "HDFC Regalia"
 
@@ -98,12 +99,12 @@ model Budget {
 
 model BudgetEntry {
   entryId   String @id @default(uuid()) @map("entry_id")
-  budgetId  String @map("budget_id")
+  budgetId  String? @map("budget_id")
   category  String                        // e.g. "dining", "groceries", "entertainment"
   limitAmt  Float  @map("limit_amt")      // Spending limit for this category this month
 
   // Relations
-  budget       Budget        @relation(fields: [budgetId], references: [budgetId], onDelete: Cascade)
+  budget       Budget?        @relation(fields: [budgetId], references: [budgetId], onDelete: SetNull)
   transactions Transaction[]
 
   @@unique([budgetId, category])          // One entry per category per budget
@@ -119,15 +120,16 @@ model BudgetEntry {
 model Transaction {
   txnId       String   @id @default(uuid()) @map("txn_id")
   cardId      String   @map("card_id")
-  entryId     String   @map("entry_id")   // FK → BudgetEntry (NOT Budget)
+  entryId     String?   @map("entry_id")   // FK → BudgetEntry (NOT Budget)
   amount      Float
   category    String
   paymentRail String   @map("payment_rail") // "UPI" | "NFC" | "ONLINE"
   txnTime     DateTime @map("txn_time")
-
+  status      String   @default("PENDING") @map("status")
+  payeeUpiId  String?   @map("payee_upi_id")
   // Relations
   card        Card        @relation(fields: [cardId], references: [cardId], onDelete: Restrict)
-  budgetEntry BudgetEntry @relation(fields: [entryId], references: [entryId], onDelete: Restrict)
+  budgetEntry BudgetEntry? @relation(fields: [entryId], references: [entryId], onDelete: SetNull)
 
   @@index([cardId])
   @@index([category])

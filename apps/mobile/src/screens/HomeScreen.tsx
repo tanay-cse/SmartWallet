@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CategoryIcon, ChevronRightIcon, PlusIcon } from '../components/icons/BudgetIcons';
 import { SWLogo } from '../components/icons/SWLogo';
@@ -25,21 +25,164 @@ import {
   EyeOffIcon,
   ShareIcon,
 } from '../components/icons/TabIcon';
+import { CardNetwork } from '../types/vault';
 import { CardNetworkLogo } from '../components/vault/CardNetworkLogo';
 import { ChipIcon, ContactlessIcon } from '../components/icons/VaultIcons';
 import { MOCK_EXPENSE_CATEGORIES } from '../data/mockBudgetData';
-import { MOCK_RECENT_TRANSACTIONS } from '../data/mockTransactionsData';
-import { MOCK_VAULT_CARDS } from '../data/mockVaultData';
+import {
+  fetchCardSummary,
+  fetchTransactions,
+  fetchUserCards,
+  CardSummaryResult,
+  BackendTransaction,
+} from '../services/api';
 import { Colors } from '../theme/colors';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = Math.min(320, SCREEN_WIDTH - 56);
+
+interface HomeCardItem {
+  cardId: string;
+  name: string;
+  bank: string;
+  network: string;
+  last4: string;
+  cardholderName: string;
+  availableLimit: number;
+  gradientColors: [string, string, string];
+}
+
+const DEFAULT_GRADIENTS: Array<[string, string, string]> = [
+  ['#0F172A', '#1E293B', '#334155'], // Slate Obsidian
+  ['#064E3B', '#047857', '#10B981'], // Emerald Forest
+  ['#312E81', '#4338CA', '#6366F1'], // Indigo Night
+];
+
+function normalizeCardNetwork(net?: string): CardNetwork {
+  const n = (net || '').toLowerCase();
+  if (n.includes('master')) return 'mastercard';
+  if (n.includes('rupay')) return 'rupay';
+  if (n.includes('amex') || n.includes('american')) return 'amex';
+  return 'visa';
+}
+
+function formatTxnTime(timeString: string | Date | undefined): string {
+  if (!timeString) return 'Just now';
+  try {
+    const d = new Date(timeString);
+    if (isNaN(d.getTime())) return 'Recently';
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
+    if (isToday) {
+      return `Today, ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    }
+    return d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  } catch (e) {
+    return 'Recently';
+  }
+}
+
+function getCategoryIcon(cat?: string): string {
+  if (!cat) return 'shopping';
+  const c = cat.toLowerCase();
+  if (c.includes('din') || c.includes('food') || c.includes('cafe')) return 'coffee';
+  if (c.includes('shop')) return 'shopping';
+  if (c.includes('trav') || c.includes('flight')) return 'flight';
+  if (c.includes('groc')) return 'groceries';
+  return 'shopping';
+}
 
 export function HomeScreen() {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const [isBalanceHidden, setIsBalanceHidden] = useState(false);
   const [isUpiHidden, setIsUpiHidden] = useState(false);
+
+  // Real backend cards and summary state
+  const [userCards, setUserCards] = useState<HomeCardItem[]>([
+    {
+      cardId: '5b46c9a3-5763-4d96-a47c-3fba519ceb35',
+      name: 'Regalia Gold',
+      bank: 'HDFC BANK',
+      network: 'VISA',
+      last4: '8821',
+      cardholderName: 'CHIRAG SHARMA',
+      availableLimit: 350000,
+      gradientColors: ['#0F172A', '#1E293B', '#334155'],
+    },
+    {
+      cardId: 'card-sapphiro',
+      name: 'Sapphiro',
+      bank: 'ICICI BANK',
+      network: 'MASTERCARD',
+      last4: '4192',
+      cardholderName: 'CHIRAG SHARMA',
+      availableLimit: 250000,
+      gradientColors: ['#064E3B', '#047857', '#10B981'],
+    },
+  ]);
+  const [selectedCardId, setSelectedCardId] = useState<string>('5b46c9a3-5763-4d96-a47c-3fba519ceb35');
+  const [cardSummary, setCardSummary] = useState<CardSummaryResult | null>(null);
+  const [realTransactions, setRealTransactions] = useState<BackendTransaction[]>([]);
+
+  // Loads card summary from backend: GET /cards/:cardId/summary
+  const loadCardSummary = React.useCallback(async (cardId: string) => {
+    if (!cardId) return;
+    const summary = await fetchCardSummary(cardId);
+    if (summary) {
+      setCardSummary(summary);
+    }
+  }, []);
+
+  // Auto-refresh summary & transactions whenever HomeScreen comes into view
+  // (e.g. immediately after returning from a successful payment on the Pay screen)
+  useFocusEffect(
+    React.useCallback(() => {
+      let isMounted = true;
+
+      // 1. Fetch real cards from user vault
+      fetchUserCards().then((backendCards) => {
+        if (!isMounted) return;
+        if (backendCards && backendCards.length > 0) {
+          const mapped: HomeCardItem[] = backendCards.map((c, idx) => ({
+            cardId: c.cardId,
+            name: c.nickname,
+            bank: c.network || 'SMARTBANK',
+            network: c.network || 'VISA',
+            last4: c.tokenId ? c.tokenId.slice(-4) : '8821',
+            cardholderName: 'CHIRAG SHARMA',
+            availableLimit: 250000,
+            gradientColors: DEFAULT_GRADIENTS[idx % DEFAULT_GRADIENTS.length],
+          }));
+          setUserCards(mapped);
+          if (!mapped.some((item) => item.cardId === selectedCardId)) {
+            setSelectedCardId(mapped[0].cardId);
+            loadCardSummary(mapped[0].cardId);
+          } else {
+            loadCardSummary(selectedCardId);
+          }
+        } else {
+          loadCardSummary(selectedCardId);
+        }
+      });
+
+      // 2. Fetch live transactions
+      fetchTransactions().then((txns) => {
+        if (!isMounted) return;
+        setRealTransactions(txns);
+      });
+
+      return () => {
+        isMounted = false;
+      };
+    }, [selectedCardId, loadCardSummary])
+  );
+
+  // Switch card and fetch its summary
+  const handleSelectCard = (cardId: string) => {
+    setSelectedCardId(cardId);
+    loadCardSummary(cardId);
+  };
 
   const topPadding = Math.max(
     insets.top,
@@ -74,6 +217,16 @@ export function HomeScreen() {
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 4);
   }, []);
+
+  // Dynamic balance that decrements on successful transactions on this card
+  const cardSpent = useMemo(() => {
+    return realTransactions
+      .filter((t) => t.status === 'SUCCESS' && (!t.cardId || t.cardId === selectedCardId))
+      .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+  }, [realTransactions, selectedCardId]);
+
+  const baseBalance = cardSummary?.mockBalance ?? 125458.5;
+  const currentBalance = Math.max(0, baseBalance - cardSpent);
 
   return (
     <View style={[styles.rootContainer, { paddingTop: topPadding }]}>
@@ -148,8 +301,33 @@ export function HomeScreen() {
           </View>
 
           <Text style={styles.balanceValue}>
-            {isBalanceHidden ? '₹••••••' : '₹12,458.50'}
+            {isBalanceHidden
+              ? '₹••••••'
+              : `₹${currentBalance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           </Text>
+
+          {/* Real Card Summary Metrics (pointsEarnedThisCycle & bestCategory) */}
+          <View style={styles.cardMetricsRow}>
+            <View style={styles.metricPill}>
+              <Text style={styles.metricPillIcon}>⭐</Text>
+              <Text style={styles.metricPillLabel}>Cycle Points:</Text>
+              <Text style={styles.metricPillValue}>
+                {cardSummary?.pointsEarnedThisCycle !== undefined
+                  ? `${cardSummary.pointsEarnedThisCycle} pts`
+                  : '142 pts'}
+              </Text>
+            </View>
+
+            <View style={styles.metricPill}>
+              <Text style={styles.metricPillIcon}>⚡</Text>
+              <Text style={styles.metricPillLabel}>Best Category:</Text>
+              <Text style={styles.metricPillValue}>
+                {cardSummary?.bestCategory
+                  ? `${cardSummary.bestCategory} (${cardSummary.bestMultiplier || '5'}x)`
+                  : 'Dining (5x)'}
+              </Text>
+            </View>
+          </View>
         </View>
 
         {/* ==================== HORIZONTAL CARDS SCROLLVIEW ==================== */}
@@ -161,25 +339,27 @@ export function HomeScreen() {
             decelerationRate="fast"
             snapToInterval={CARD_WIDTH + 14}
           >
-            {MOCK_VAULT_CARDS.map((card) => {
-              const gradId = `homeGrad-${card.id}`;
+            {userCards.map((card) => {
+              const isSelected = card.cardId === selectedCardId;
+              const gradId = `homeGrad-${card.cardId}`;
               const formattedLimit = `₹${card.availableLimit.toLocaleString('en-IN')}`;
 
               return (
                 <TouchableOpacity
-                  key={card.id}
+                  key={card.cardId}
                   style={[
                     styles.cardContainer,
+                    isSelected && styles.cardContainerActive,
                     {
                       width: CARD_WIDTH,
                       backgroundColor: card.gradientColors[0],
                     },
                   ]}
-                  onPress={() => navigation.navigate('CardDetail', { card })}
+                  onPress={() => handleSelectCard(card.cardId)}
                   activeOpacity={0.9}
                 >
                   {/* SVG Gradient Background */}
-                  <Svg width="100%" height="100%" style={StyleSheet.absoluteFillObject}>
+                  <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
                     <Defs>
                       <LinearGradient id={gradId} x1="0" y1="0" x2="1" y2="1">
                         <Stop offset="0%" stopColor={card.gradientColors[0]} />
@@ -202,7 +382,14 @@ export function HomeScreen() {
                         <Text style={styles.cardBankLabel}>{card.bank}</Text>
                         <Text style={styles.cardNameLabel}>{card.name}</Text>
                       </View>
-                      <CardNetworkLogo network={card.network} size={36} />
+                      <View style={styles.cardTopRight}>
+                        {isSelected && (
+                          <View style={styles.activeCardBadge}>
+                            <Text style={styles.activeCardBadgeText}>SELECTED</Text>
+                          </View>
+                        )}
+                        <CardNetworkLogo network={normalizeCardNetwork(card.network)} size={36} />
+                      </View>
                     </View>
 
                     <View style={styles.cardMiddleRow}>
@@ -216,7 +403,9 @@ export function HomeScreen() {
                         <Text style={styles.cardholderText}>{card.cardholderName}</Text>
                       </View>
                       <View style={styles.limitCol}>
-                        <Text style={styles.limitLabel}>Available</Text>
+                        <Text style={styles.limitLabel}>
+                          {isSelected ? 'Active Card' : 'Tap to Select'}
+                        </Text>
                         <Text style={styles.limitValue}>{formattedLimit}</Text>
                       </View>
                     </View>
@@ -337,7 +526,7 @@ export function HomeScreen() {
           </View>
         </View>
 
-        {/* ==================== RECENT TRANSACTIONS (3 Items) ==================== */}
+        {/* ==================== RECENT TRANSACTIONS ==================== */}
         <View style={styles.sectionContainer}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Recent Transactions</Text>
@@ -349,33 +538,72 @@ export function HomeScreen() {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.recentListWrapper}>
-            {MOCK_RECENT_TRANSACTIONS.map((tx, index) => {
-              const isLast = index === MOCK_RECENT_TRANSACTIONS.length - 1;
+          {realTransactions.length === 0 ? (
+            <View style={styles.emptyTxBox}>
+              <Text style={styles.emptyTxTitle}>No transactions recorded yet</Text>
+              <Text style={styles.emptyTxSub}>
+                Make a payment on the Pay tab to see your sandboxed UPI settlements here.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.recentListWrapper}>
+              {realTransactions.slice(0, 4).map((tx, index) => {
+                const isLast = index === Math.min(realTransactions.length, 4) - 1;
+                const isPending = tx.status === 'PENDING';
+                const isSuccess = tx.status === 'SUCCESS';
+                const isFailed = tx.status === 'FAILED';
 
-              return (
-                <View
-                  key={tx.id}
-                  style={[styles.recentTxItem, !isLast && styles.recentTxBorder]}
-                >
-                  <View style={styles.recentIconBox}>
-                    <BrandIcon
-                      name={tx.iconType}
-                      size={18}
-                      color={Colors.textPrimary}
-                    />
+                return (
+                  <View
+                    key={tx.txnId}
+                    style={[styles.recentTxItem, !isLast && styles.recentTxBorder]}
+                  >
+                    <View style={styles.recentIconBox}>
+                      <BrandIcon
+                        name={getCategoryIcon(tx.category)}
+                        size={18}
+                        color={Colors.textPrimary}
+                      />
+                    </View>
+
+                    <View style={styles.recentTxDetails}>
+                      <Text style={styles.recentTxTitle} numberOfLines={1}>
+                        {tx.payeeUpiId ? `To ${tx.payeeUpiId}` : `${tx.category} Payment`}
+                      </Text>
+                      <View style={styles.txMetaRow}>
+                        <Text style={styles.recentTxDate}>{formatTxnTime(tx.txnTime)}</Text>
+                        <Text style={styles.txDotSeparator}>•</Text>
+                        <Text style={styles.txCategoryTag}>{tx.category}</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.txAmountCol}>
+                      <Text style={styles.recentTxAmount}>
+                        -₹{tx.amount.toLocaleString('en-IN')}
+                      </Text>
+
+                      {/* Status badge: style PENDING differently from SUCCESS */}
+                      {isPending && (
+                        <View style={styles.badgePending}>
+                          <Text style={styles.badgePendingText}>PENDING</Text>
+                        </View>
+                      )}
+                      {isSuccess && (
+                        <View style={styles.badgeSuccess}>
+                          <Text style={styles.badgeSuccessText}>SUCCESS</Text>
+                        </View>
+                      )}
+                      {isFailed && (
+                        <View style={styles.badgeFailed}>
+                          <Text style={styles.badgeFailedText}>FAILED</Text>
+                        </View>
+                      )}
+                    </View>
                   </View>
-
-                  <View style={styles.recentTxDetails}>
-                    <Text style={styles.recentTxTitle}>{tx.title}</Text>
-                    <Text style={styles.recentTxDate}>{tx.date}</Text>
-                  </View>
-
-                  <Text style={styles.recentTxAmount}>{tx.amount}</Text>
-                </View>
-              );
-            })}
-          </View>
+                );
+              })}
+            </View>
+          )}
         </View>
 
         {/* ==================== UPI QR CODE REVEAL ON SCROLL ==================== */}
@@ -841,20 +1069,156 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   recentTxTitle: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 13.5,
+    fontWeight: '700',
     color: Colors.textPrimary,
+  },
+  txMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 2,
   },
   recentTxDate: {
     fontSize: 11,
     color: Colors.textSecondary,
-    marginTop: 2,
+  },
+  txDotSeparator: {
+    fontSize: 11,
+    color: Colors.textMuted,
+  },
+  txCategoryTag: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.forestGreen,
+  },
+  txAmountCol: {
+    alignItems: 'flex-end',
   },
   recentTxAmount: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 13.5,
+    fontWeight: '800',
     color: Colors.slateExpense,
     fontVariant: ['tabular-nums'],
+  },
+  badgePending: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginTop: 3,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  badgePendingText: {
+    color: '#D97706',
+    fontSize: 8.5,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  badgeSuccess: {
+    backgroundColor: '#D1FAE5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginTop: 3,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  badgeSuccessText: {
+    color: '#059669',
+    fontSize: 8.5,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  badgeFailed: {
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginTop: 3,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  badgeFailedText: {
+    color: '#DC2626',
+    fontSize: 8.5,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  emptyTxBox: {
+    backgroundColor: Colors.surfaceSubtle,
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+  },
+  emptyTxTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    marginBottom: 4,
+  },
+  emptyTxSub: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 16,
+  },
+  cardMetricsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10,
+    flexWrap: 'wrap',
+  },
+  metricPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surfaceSubtle,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    gap: 4,
+  },
+  metricPillIcon: {
+    fontSize: 12,
+  },
+  metricPillLabel: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    fontWeight: '600',
+  },
+  metricPillValue: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: Colors.forestGreen,
+  },
+  cardContainerActive: {
+    borderColor: '#10B981',
+    borderWidth: 2,
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  cardTopRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  activeCardBadge: {
+    backgroundColor: '#10B981',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  activeCardBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 8,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   myQrSection: {
     marginTop: 8,

@@ -20,7 +20,7 @@ Content-Type: application/json
 
 {
   "email": "test@example.com",
-  "password": "Test1234!"
+  "password": "testpassword123!"
 }
 
 ### 3. Refresh

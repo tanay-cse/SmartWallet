@@ -16,7 +16,7 @@ import { CardVaultService } from './card-vault.service';
 @UseGuards(AuthGuard('jwt'))
 @Controller('cards')
 export class CardVaultController {
-  constructor(private readonly cardVaultService: CardVaultService) {}
+  constructor(private readonly cardVaultService: CardVaultService) { }
 
   // POST /cards
   @Post()
@@ -27,6 +27,7 @@ export class CardVaultController {
       tokenId: string;
       network: string;
       nickname: string;
+      upiId: string;
     },
   ) {
     return this.cardVaultService.createCard(req.user.userId, body);

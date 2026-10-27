@@ -1,0 +1,10 @@
+### Recommendation endpoint — example request
+### Use with the VS Code "REST Client" extension.
+### Get accessToken from POST /api/auth/login first (see auth.http).
+
+@baseUrl = http://localhost:3000/api
+@accessToken = $2b$10$GN9hi0LdALtVdW/vo.SjS.y0KAPZQb8n6FNaZeuxKqwc7I22l7BHm
+
+### Get the best card recommendation for a spend category
+GET {{baseUrl}}/recommendation?category=dining&amount=1500
+Authorization: Bearer {{accessToken}}
